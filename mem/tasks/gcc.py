@@ -92,9 +92,9 @@ def t_c_obj(target, source_list, CC, CFLAGS, CPPPATH):
 
     return nodes.File(target)
 
-@util.with_env(CXXFLAGS=[], CPPPATH=[])
+@util.with_env(CC="g++", CXXFLAGS=[], CPPPATH=[])
 @mem.memoize
-def t_cpp_obj(target, source_list, CXXFLAGS, CPPPATH):
+def t_cpp_obj(target, source_list, CC, CXXFLAGS, CPPPATH):
     inc_dirs = set()
     if len(source_list) > 1:
         combine_opt=['-combine']
@@ -109,9 +109,9 @@ def t_cpp_obj(target, source_list, CXXFLAGS, CPPPATH):
             mem.add_dep(util.convert_to_file(source))
 
     mem.add_deps([nodes.File(f) for f in
-                  make_depends(target, source_list,
+                  make_depends(target, source_list, CC=CC,
                                CFLAGS=CXXFLAGS, CPPPATH=CPPPATH,
-                               inc_dirs = list(inc_dirs))])
+                               inc_dirs=list(inc_dirs))])
 
     includes = ["-I" + path for path in CPPPATH]
     args = util.convert_cmd(["g++"] +  CXXFLAGS + includes +
@@ -230,8 +230,11 @@ def shared_obj(target, objs, env=None, build_dir = None, **kwargs):
     if 'CFLAGS' in kwargs:
         merged_CFLAGS = kwargs['CFLAGS'][:]
         del kwargs['CFLAGS']
-    else:
+    elif 'CFLAGS' in env:
         merged_CFLAGS = env.CFLAGS[:]
+    elif 'CXXFLAGS' in env:
+        merged_CFLAGS = env.CXXFLAGS[:]
+        env.CC = 'g++'
 
     merged_CFLAGS.insert(0, "-shared")
 
