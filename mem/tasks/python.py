@@ -17,13 +17,17 @@ except ImportError:
     _has_cython = False
 
 import re
+import os
 
-from mem.tasks.gcc import *
+import mem
+from mem.tasks import gcc
 from mem._mem import Mem
+from mem import nodes
+from mem import util
 
-@util.with_env(CFLAGS=[], CPPPATH=[])
+@util.with_env(CC="gcc", CFLAGS=[], CPPPATH=[])
 @mem.memoize
-def _build_python_obj(target, source, CFLAGS, CPPPATH):
+def _build_python_obj(target, source, CC, CFLAGS, CPPPATH):
     includes = ["-I" + path for path in CPPPATH]
     if os.path.dirname(source) != '':
         includes.append("-I" + os.path.dirname(source))
@@ -32,7 +36,8 @@ def _build_python_obj(target, source, CFLAGS, CPPPATH):
     # Check for header dependencies
     mem = Mem.instance()
     mem.add_deps([nodes.File(f) for f in
-                  make_depends(target, [ source ],
+                  gcc.make_depends(target, [source],
+                               CC=CC,
                                CFLAGS=CFLAGS,
                                CPPPATH=CPPPATH,
                                inc_dirs=includes
@@ -42,7 +47,7 @@ def _build_python_obj(target, source, CFLAGS, CPPPATH):
     cargs = get_config_var('BLDSHARED').split(' ')
     args = util.convert_cmd([cargs[0]] + cargs[1:] +
             CFLAGS + includes +
-            target_inc_flag(target, [ source ]) +
+            gcc.target_inc_flag(target, [ source ]) +
             list(includes) +
             ["-c", "-o", target] + [ source ])
 
@@ -188,8 +193,9 @@ def _python_obj(source, env, build_dir, **kwargs):
     target = os.path.join(build_dir, os.path.splitext(source)[0] + '.o')
 
     return _build_python_obj(target, source,
-            env.get("CFLAGS", []),
-            env.get("CPPPATH", []),
+                    env.get('CC', 'gcc'),
+                    env.get("CFLAGS", []),
+                    env.get("CPPPATH", []),
     )
 
 
@@ -205,11 +211,18 @@ def _python_cython(source, env, build_dir, **kwargs):
     )
 
     return _build_python_obj(base_target + '.o', cfile,
-            env.get("CFLAGS", []),
-            env.get("CPPPATH", []),
+                    env.get("CC", 'gcc'),
+                    env.get("CFLAGS", []),
+                    env.get("CPPPATH", []),
     )
 
+def _passthrough(source, env, build_dir, **kwargs):
+    return [source]
+
+
 _EXTENSION_DISPATCH = {
+    '.o': _passthrough,
+    '.so': _passthrough,
     '.c': _python_obj,
     '.pyx': _python_cython,
 }
@@ -225,6 +238,20 @@ def python_ext(target, sources, env={}, build_dir = "", inplace = False,
 
     build_dir = util.get_build_dir(env, build_dir)
 
+
+    # Set our function specific config
+    newenv = util.Env(env)
+    newenv.update(kwargs)
+
+    # Fill in the holes with sensible defaults
+    # Is this C or C++?
+    if 'CC' not in newenv:
+        if 'CXXFLAGS' in newenv and 'CFLAGS' not in newenv:
+            newenv.CC = 'g++'
+        else:
+            newenv.CC = 'gcc'
+
+
     all_objs = []
     for source in util.flatten(sources):
         ext = os.path.splitext(source)[1].lower()
@@ -232,7 +259,7 @@ def python_ext(target, sources, env={}, build_dir = "", inplace = False,
             raise ValueError("Don't know how to build extension from source %s"
                     % source)
 
-        objs = _EXTENSION_DISPATCH[ext](source, env or {}, build_dir, **kwargs)
+        objs = _EXTENSION_DISPATCH[ext](source, newenv or {}, build_dir, **kwargs)
 
         all_objs.extend(objs)
 
@@ -243,17 +270,6 @@ def python_ext(target, sources, env={}, build_dir = "", inplace = False,
     else:
         ntarget = target
 
-
-    if 'CFLAGS' in kwargs:
-        CFLAGS = kwargs['CFLAGS'][:]
-    elif env is not None:
-        CFLAGS = env.get('CFLAGS', [])
-
-    if 'LDFLAGS' in kwargs:
-        LDFLAGS = kwargs['LDFLAGS'][:]
-    elif env is not None:
-        LDFLAGS = env.get('LDFLAGS', [])
-
-    return _link_python_ext(ntarget, all_objs, CFLAGS, LDFLAGS)
+    return _link_python_ext(ntarget, all_objs, env=newenv)
 
 
