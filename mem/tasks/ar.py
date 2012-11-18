@@ -43,9 +43,9 @@ def t_ar(target, sources, ARARGS, ARCMD):
 def ar(target, sources, LIBSUFFIX=".a", LIBPREFIX="lib",
        build_dir=None, env=None):
     BuildDir = mem.util.get_build_dir(env, build_dir)
-    if not target[-2:] == LIBSUFFIX:
+    if not target.endswith(LIBSUFFIX):
         target += LIBSUFFIX
-    if not target[0:3] == LIBPREFIX:
+    if not target.startswith(LIBPREFIX):
         target = LIBPREFIX + target
 
     ntarget = os.path.join(BuildDir, target)
