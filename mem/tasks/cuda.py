@@ -3,8 +3,6 @@ SCons.Tool.cuda
 
 CUDA Tool for SCons
 
-"""
-
 import os
 import sys
 import SCons.Tool
@@ -145,3 +143,5 @@ def generate(env):
 
 def exists(env):
     return env.Detect('nvcc')
+
+"""
