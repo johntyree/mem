@@ -348,7 +348,7 @@ class Env(dict):
             raise AttributeError("'Env' object has no attribute '%s'" % key)
 
     def __setattr__(self, key, val):
-	self[key] = val
+        self[key] = val
 
     def __repr__(self):
         return "Env(" + " ".join("%s=%s" % (k, repr(v))
