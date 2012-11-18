@@ -58,17 +58,17 @@ def _build_python_obj(target, source, CC, CFLAGS, CPPPATH):
 
     return [ nodes.File(target) ]
 
-@util.with_env(CFLAGS=[], LDFLAGS=[])
+@util.with_env(CFLAGS=[], LINKFLAGS=[])
 @mem.memoize
-def _link_python_ext(target, objs, CFLAGS, LDFLAGS):
+def _link_python_ext(target, objs, CFLAGS, LINKFLAGS):
     mem = Mem.instance()
     mem.add_deps(objs)
 
-    cargs = get_config_var('BLDSHARED').split(' ')
-    args = util.convert_cmd([cargs[0]] + cargs[1:] +
-            CFLAGS + LDFLAGS + ["-o", target] + objs)
+    cargs = get_config_var('BLDSHARED').split() + get_config_var('BLDLIBRARY').split()
+    args = util.convert_cmd(cargs[:1] + ["-o", target] + cargs[1:] + CFLAGS + objs + LINKFLAGS)
 
-    if util.run("GCC Link (Python Extension)", objs, args) != 0:
+    (returncode, stdoutdata, stderrdata) = util.run_return_output("GCC Link (Python Extension)", objs, util._open_pipe_, args)
+    if returncode != 0:
         Mem.instance().fail()
 
     return nodes.File(target)
